@@ -1,0 +1,37 @@
+name: Build APK
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - uses: android-actions/setup-android@v3
+      - name: Install Capacitor and plugins
+        run: |
+          npm init -y
+          npm i @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6 @capacitor/geolocation@6 @capacitor/local-notifications@6 @capacitor/share@6 @capacitor/browser@6
+          npx cap add android
+          npx cap sync android
+      - name: Add native code, permissions, icon
+        run: |
+          A=android/app/src/main
+          cp native/*.java $A/java/com/hersafe/app/
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.SEND_SMS" />\n    <uses-permission android:name="android.permission.CALL_PHONE" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />\n    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.VIBRATE" />\n    <uses-permission android:name="android.permission.WAKE_LOCK" />\n    <uses-feature android:name="android.hardware.telephony" android:required="false" />#' $A/AndroidManifest.xml
+          grep -c "CALL_PHONE" $A/AndroidManifest.xml
+          rm -rf $A/res/mipmap-anydpi-v26
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do cp res/mipmap-$d/*.png $A/res/mipmap-$d/; done
+      - name: Build
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HerSafe-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
